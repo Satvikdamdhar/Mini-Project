@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Local projects and archives outside this dashboard
+Smart_Irrigation_Form/
+Web-programming-II-lab-main/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
