@@ -18,6 +18,10 @@ const sidebarItems = [
   { label: 'About', icon: 'ℹ' },
 ];
 
+const defaultUsers = [
+  { id: 1, fullName: 'Admin Farmer', email: 'admin@farm.com', password: 'farmer123' },
+];
+
 function App() {
   const [farms, setFarms] = useState([]);
   const [selectedFarmId, setSelectedFarmId] = useState(null);
@@ -28,6 +32,24 @@ function App() {
   const [lastUpdated, setLastUpdated] = useState('');
   const [loading, setLoading] = useState(true);
   const [pumpOn, setPumpOn] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authMode, setAuthMode] = useState('login');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [users, setUsers] = useState(defaultUsers);
+  const [authError, setAuthError] = useState('');
+  const [registerErrors, setRegisterErrors] = useState({});
+  const [loginData, setLoginData] = useState({ identifier: 'admin@farm.com', password: 'farmer123' });
+  const [registerData, setRegisterData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    farmName: '',
+    farmSize: '',
+    primaryCrop: '',
+    soilProfile: 'Loam',
+    irrigationSystem: 'Drip Irrigation',
+    agreeTerms: false,
+  });
 
   async function loadFarmData() {
     setLoading(true);
@@ -88,6 +110,124 @@ function App() {
     setPage('Dashboard');
   }
 
+  function handleLoginChange(event) {
+    const { name, value } = event.target;
+    setLoginData((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleRegisterChange(event) {
+    const { name, value } = event.target;
+    setRegisterData((prev) => ({ ...prev, [name]: value }));
+  }
+
+  function handleLoginSubmit(event) {
+    event.preventDefault();
+
+    const identifier = loginData.identifier.trim();
+    const password = loginData.password;
+
+    if (!identifier || !password) {
+      setAuthError('Please enter your email/username and password.');
+      return;
+    }
+
+    const matchedUser = users.find(
+      (user) =>
+        (user.email.toLowerCase() === identifier.toLowerCase() ||
+          user.fullName.toLowerCase() === identifier.toLowerCase()) &&
+        user.password === password
+    );
+
+    if (!matchedUser) {
+      setAuthError('Invalid credentials. Please try again.');
+      return;
+    }
+
+    setCurrentUser(matchedUser);
+    setIsAuthenticated(true);
+    setAuthError('');
+    setPage('Dashboard');
+  }
+
+  function handleRegisterSubmit(event) {
+    event.preventDefault();
+
+    const nextErrors = {};
+    const fullName = registerData.fullName.trim();
+    const email = registerData.email.trim().toLowerCase();
+    const phone = registerData.phone.trim();
+    const farmName = registerData.farmName.trim();
+    const farmSize = Number(registerData.farmSize);
+    const primaryCrop = registerData.primaryCrop.trim();
+    const soilProfile = registerData.soilProfile;
+    const irrigationSystem = registerData.irrigationSystem;
+
+    if (!fullName) nextErrors.fullName = 'Full Name is required.';
+    if (!email) nextErrors.email = 'Email is required.';
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      nextErrors.email = 'Please enter a valid email address.';
+    }
+    if (!phone) nextErrors.phone = 'Phone number is required.';
+    if (!farmName) nextErrors.farmName = 'Farm / Plot Name is required.';
+    if (!registerData.farmSize || Number.isNaN(farmSize) || farmSize <= 0) {
+      nextErrors.farmSize = 'Farm size is required.';
+    }
+    if (!primaryCrop) nextErrors.primaryCrop = 'Primary crop type is required.';
+    if (!soilProfile) nextErrors.soilProfile = 'Soil profile is required.';
+    if (!irrigationSystem) nextErrors.irrigationSystem = 'Irrigation system is required.';
+    if (!registerData.agreeTerms) nextErrors.agreeTerms = 'You must agree to the terms and conditions.';
+
+    const emailExists = users.some((user) => user.email.toLowerCase() === email);
+    if (email && emailExists) {
+      nextErrors.email = 'This email is already registered. Please log in instead.';
+    }
+
+    setRegisterErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setAuthError('Please correct the highlighted fields.');
+      return;
+    }
+
+    const newUser = {
+      id: Date.now(),
+      fullName,
+      email,
+      phone,
+      farmName,
+      farmSize,
+      primaryCrop,
+      soilProfile,
+      irrigationSystem,
+      password: 'Farm@123',
+    };
+
+    setUsers((previousUsers) => [...previousUsers, newUser]);
+    setCurrentUser(newUser);
+    setIsAuthenticated(true);
+    setAuthError('');
+    setRegisterErrors({});
+    setRegisterData({
+      fullName: '',
+      email: '',
+      phone: '',
+      farmName: '',
+      farmSize: '',
+      primaryCrop: '',
+      soilProfile: 'Loam',
+      irrigationSystem: 'Drip Irrigation',
+      agreeTerms: false,
+    });
+    setPage('Dashboard');
+  }
+
+  function handleLogout() {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setAuthError('');
+    setAuthMode('login');
+  }
+
   const moistureStatus =
     currentFarm && currentFarm.soilMoisture < 30
       ? 'Low'
@@ -112,6 +252,250 @@ function App() {
     { type: 'warning', message: 'Rain expected tomorrow.' },
     { type: 'success', message: 'Pump completed irrigation successfully.' },
   ];
+
+  function renderAuthScreen() {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-brand">
+            <div className="brand-icon">🌱</div>
+            <div>
+              <h2>AgriSense</h2>
+              <p>Smart Irrigation Control</p>
+            </div>
+          </div>
+
+          <div className="auth-toggle">
+            <button
+              type="button"
+              className={authMode === 'login' ? 'auth-tab active' : 'auth-tab'}
+              onClick={() => setAuthMode('login')}
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              className={authMode === 'register' ? 'auth-tab active' : 'auth-tab'}
+              onClick={() => setAuthMode('register')}
+            >
+              New User
+            </button>
+          </div>
+
+          {authMode === 'login' ? (
+            <form className="auth-form" onSubmit={handleLoginSubmit}>
+              <div className="field-group">
+                <label htmlFor="login-identifier">Email / Username</label>
+                <input
+                  id="login-identifier"
+                  name="identifier"
+                  type="text"
+                  value={loginData.identifier}
+                  onChange={handleLoginChange}
+                  placeholder="Enter your email or username"
+                />
+              </div>
+
+              <div className="field-group">
+                <label htmlFor="login-password">Password</label>
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  value={loginData.password}
+                  onChange={handleLoginChange}
+                  placeholder="Enter your password"
+                />
+              </div>
+
+              {authError && <div className="auth-error">{authError}</div>}
+
+              <button type="submit" className="auth-submit-button">
+                Sign In
+              </button>
+
+              <div className="demo-account-box">
+                <strong>Demo account:</strong>
+                <span>admin@farm.com / farmer123</span>
+              </div>
+            </form>
+          ) : (
+            <form className="register-form" onSubmit={handleRegisterSubmit}>
+              <div className="register-section">
+                <div className="section-title-small">PERSONAL INFORMATION</div>
+
+                <div className="register-grid two-col">
+                  <div className="register-field">
+                    <label htmlFor="register-fullName">
+                      Full Name <span className="asterisk">*</span>
+                    </label>
+                    <input
+                      id="register-fullName"
+                      name="fullName"
+                      type="text"
+                      value={registerData.fullName}
+                      onChange={handleRegisterChange}
+                      className={registerErrors.fullName ? 'input-error' : ''}
+                    />
+                    {registerErrors.fullName && <span className="validation-error">{registerErrors.fullName}</span>}
+                  </div>
+
+                  <div className="register-field">
+                    <label htmlFor="register-email">
+                      Email Address <span className="asterisk">*</span>
+                    </label>
+                    <input
+                      id="register-email"
+                      name="email"
+                      type="email"
+                      value={registerData.email}
+                      onChange={handleRegisterChange}
+                      className={registerErrors.email ? 'input-error' : ''}
+                    />
+                    {registerErrors.email && <span className="validation-error">{registerErrors.email}</span>}
+                  </div>
+                </div>
+
+                <div className="register-field single-col">
+                  <label htmlFor="register-phone">
+                    Phone / WhatsApp Number <span className="asterisk">*</span>
+                  </label>
+                  <input
+                    id="register-phone"
+                    name="phone"
+                    type="tel"
+                    value={registerData.phone}
+                    onChange={handleRegisterChange}
+                    className={registerErrors.phone ? 'input-error' : ''}
+                  />
+                  {registerErrors.phone && <span className="validation-error">{registerErrors.phone}</span>}
+                </div>
+              </div>
+
+              <div className="register-section">
+                <div className="section-title-small">FARM DETAILS &amp; AGRONOMICS</div>
+
+                <div className="register-grid two-col">
+                  <div className="register-field">
+                    <label htmlFor="register-farmName">
+                      Farm / Plot Name <span className="asterisk">*</span>
+                    </label>
+                    <input
+                      id="register-farmName"
+                      name="farmName"
+                      type="text"
+                      value={registerData.farmName}
+                      onChange={handleRegisterChange}
+                      className={registerErrors.farmName ? 'input-error' : ''}
+                    />
+                    {registerErrors.farmName && <span className="validation-error">{registerErrors.farmName}</span>}
+                  </div>
+
+                  <div className="register-field">
+                    <label htmlFor="register-farmSize">
+                      Size (Acres) <span className="asterisk">*</span>
+                    </label>
+                    <input
+                      id="register-farmSize"
+                      name="farmSize"
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={registerData.farmSize}
+                      onChange={handleRegisterChange}
+                      className={registerErrors.farmSize ? 'input-error' : ''}
+                    />
+                    {registerErrors.farmSize && <span className="validation-error">{registerErrors.farmSize}</span>}
+                  </div>
+                </div>
+
+                <div className="register-grid two-col">
+                  <div className="register-field">
+                    <label htmlFor="register-primaryCrop">
+                      Primary Crop <span className="asterisk">*</span>
+                    </label>
+                    <input
+                      id="register-primaryCrop"
+                      name="primaryCrop"
+                      type="text"
+                      value={registerData.primaryCrop}
+                      onChange={handleRegisterChange}
+                      className={registerErrors.primaryCrop ? 'input-error' : ''}
+                    />
+                    {registerErrors.primaryCrop && <span className="validation-error">{registerErrors.primaryCrop}</span>}
+                  </div>
+
+                  <div className="register-field">
+                    <label htmlFor="register-soilProfile">Soil Profile</label>
+                    <select
+                      id="register-soilProfile"
+                      name="soilProfile"
+                      value={registerData.soilProfile}
+                      onChange={handleRegisterChange}
+                    >
+                      <option value="Loam">Loam</option>
+                      <option value="Clay">Clay</option>
+                      <option value="Sandy">Sandy</option>
+                      <option value="Red Soil">Red Soil</option>
+                      <option value="Black Soil">Black Soil</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="register-section">
+                <div className="section-title-small">IRRIGATION SETUP</div>
+
+                <div className="register-field single-col">
+                  <label htmlFor="register-irrigationSystem">
+                    Irrigation System <span className="asterisk">*</span>
+                  </label>
+                  <select
+                    id="register-irrigationSystem"
+                    name="irrigationSystem"
+                    value={registerData.irrigationSystem}
+                    onChange={handleRegisterChange}
+                    className={registerErrors.irrigationSystem ? 'input-error' : ''}
+                  >
+                    <option value="Drip Irrigation">Drip Irrigation</option>
+                    <option value="Center Pivot / Sprinkler">Center Pivot / Sprinkler</option>
+                    <option value="Surface / Flood">Surface / Flood</option>
+                    <option value="Sub-surface Drip">Sub-surface Drip</option>
+                  </select>
+                  {registerErrors.irrigationSystem && (
+                    <span className="validation-error">{registerErrors.irrigationSystem}</span>
+                  )}
+                </div>
+              </div>
+
+              {authError && <div className="auth-error">{authError}</div>}
+
+              <div className="terms-row">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    name="agreeTerms"
+                    checked={registerData.agreeTerms}
+                    onChange={(event) =>
+                      setRegisterData((prev) => ({ ...prev, agreeTerms: event.target.checked }))
+                    }
+                  />
+                  <span>I agree to the Terms &amp; Conditions and Privacy Policy</span>
+                </label>
+                {registerErrors.agreeTerms && (
+                  <span className="validation-error inline-warning">{registerErrors.agreeTerms}</span>
+                )}
+              </div>
+
+              <button type="submit" className="register-submit-button">
+                Register Farm Setup
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   function renderDashboard() {
     if (loading) {
@@ -140,12 +524,15 @@ function App() {
             <div className="notification-icon">🔔</div>
             <div className="user-profile">
               <span className="user-avatar">👨‍🌾</span>
-              <span>Ramesh Kumar</span>
+              <span>{currentUser ? currentUser.fullName : 'Ramesh Kumar'}</span>
             </div>
             <select className="language-select" defaultValue="English">
               <option>English</option>
               <option>Hindi</option>
             </select>
+            <button type="button" className="logout-button" onClick={handleLogout}>
+              Logout
+            </button>
           </div>
         </div>
 
@@ -505,6 +892,10 @@ function App() {
     }
 
     return renderDashboard();
+  }
+
+  if (!isAuthenticated) {
+    return renderAuthScreen();
   }
 
   return (
