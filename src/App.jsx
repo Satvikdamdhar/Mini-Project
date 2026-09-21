@@ -19,7 +19,8 @@ const sidebarItems = [
 ];
 
 const defaultUsers = [
-  { id: 1, fullName: 'Admin Farmer', email: 'admin@farm.com', password: 'farmer123' },
+  { id: 1, fullName: 'Admin Farmer', email: 'admin@farm.com', password: 'farmer123', role: 'primary' },
+  { id: 2, fullName: 'Agricultural Officer', email: 'officer@farm.com', password: 'officer123', role: 'secondary' },
 ];
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [currentUser, setCurrentUser] = useState(null);
+  const [activePanel, setActivePanel] = useState('primary');
   const [users, setUsers] = useState(defaultUsers);
   const [authError, setAuthError] = useState('');
   const [registerErrors, setRegisterErrors] = useState({});
@@ -144,6 +146,7 @@ function App() {
     }
 
     setCurrentUser(matchedUser);
+    setActivePanel(matchedUser.role || 'primary');
     setIsAuthenticated(true);
     setAuthError('');
     setPage('Dashboard');
@@ -203,7 +206,8 @@ function App() {
     };
 
     setUsers((previousUsers) => [...previousUsers, newUser]);
-    setCurrentUser(newUser);
+    setCurrentUser({ ...newUser, role: 'primary' });
+    setActivePanel('primary');
     setIsAuthenticated(true);
     setAuthError('');
     setRegisterErrors({});
@@ -224,6 +228,7 @@ function App() {
   function handleLogout() {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setActivePanel('primary');
     setAuthError('');
     setAuthMode('login');
   }
@@ -252,6 +257,140 @@ function App() {
     { type: 'warning', message: 'Rain expected tomorrow.' },
     { type: 'success', message: 'Pump completed irrigation successfully.' },
   ];
+
+  const secondarySidebarItems = [
+    { label: 'Dashboard', icon: '📊' },
+    { label: 'Field Monitoring', icon: '🛰️' },
+    { label: 'Advisory Queue', icon: '💬' },
+    { label: 'Reports', icon: '📄' },
+    { label: 'Officer Notes', icon: '📝' },
+  ];
+
+  const activeSidebarItems = activePanel === 'secondary' ? secondarySidebarItems : sidebarItems;
+
+  function renderSecondaryDashboard() {
+    return (
+      <>
+        <div className="secondary-header-strip">
+          <div className="secondary-badge">Secondary User Panel</div>
+          <div className="secondary-user-row">
+            <span className="secondary-user-name">{currentUser ? currentUser.fullName : 'Agricultural Officer'}</span>
+            <span className="secondary-status">Monitoring active</span>
+          </div>
+        </div>
+
+        <div className="secondary-summary-grid">
+          <div className="summary-card-box secondary-summary">
+            <div className="summary-icon">🌾</div>
+            <div className="summary-content">
+              <span className="summary-title">Active Farms</span>
+              <span className="summary-value">284</span>
+              <span className="summary-status normal">+18 this week</span>
+            </div>
+          </div>
+
+          <div className="summary-card-box secondary-summary">
+            <div className="summary-icon">💧</div>
+            <div className="summary-content">
+              <span className="summary-title">Irrigation Demand</span>
+              <span className="summary-value">67%</span>
+              <span className="summary-status high">High alert</span>
+            </div>
+          </div>
+
+          <div className="summary-card-box secondary-summary">
+            <div className="summary-icon">📉</div>
+            <div className="summary-content">
+              <span className="summary-title">Field Health Index</span>
+              <span className="summary-value">82</span>
+              <span className="summary-status normal">Stable</span>
+            </div>
+          </div>
+
+          <div className="summary-card-box secondary-summary">
+            <div className="summary-icon">🚨</div>
+            <div className="summary-content">
+              <span className="summary-title">Urgent Advisories</span>
+              <span className="summary-value">12</span>
+              <span className="summary-status low">Needs action</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="secondary-grid">
+          <section className="section-block">
+            <div className="section-title-row">
+              <h3>Regional Water Stress</h3>
+            </div>
+            <div className="secondary-chart">
+              <div className="chart-bar low"><span>Low</span></div>
+              <div className="chart-bar med"><span>Moderate</span></div>
+              <div className="chart-bar high"><span>High</span></div>
+              <div className="chart-bar severe"><span>Severe</span></div>
+            </div>
+            <div className="chart-legend">
+              <span><i className="legend-dot green" /> Low stress</span>
+              <span><i className="legend-dot yellow" /> Moderate</span>
+              <span><i className="legend-dot orange" /> High</span>
+              <span><i className="legend-dot red" /> Severe</span>
+            </div>
+          </section>
+
+          <section className="section-block">
+            <div className="section-title-row">
+              <h3>Advisory Queue</h3>
+            </div>
+            <div className="mini-list">
+              <div className="list-item">
+                <strong>Green Valley Plot 5</strong>
+                <span>Low soil moisture, send repeat alert</span>
+              </div>
+              <div className="list-item">
+                <strong>River Bend Farm</strong>
+                <span>Rainfall likely; delay irrigation cycle</span>
+              </div>
+              <div className="list-item">
+                <strong>East Ridge Orchards</strong>
+                <span>Sensor battery low; inspect equipment</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="secondary-grid">
+          <section className="section-block">
+            <div className="section-title-row">
+              <h3>Officer Assignments</h3>
+            </div>
+            <div className="assignment-list">
+              <div className="assignment-box">
+                <span className="assignment-label">North Zone</span>
+                <strong>7 farms monitored</strong>
+              </div>
+              <div className="assignment-box">
+                <span className="assignment-label">South Zone</span>
+                <strong>9 farms monitored</strong>
+              </div>
+              <div className="assignment-box">
+                <span className="assignment-label">West Zone</span>
+                <strong>5 farms monitored</strong>
+              </div>
+            </div>
+          </section>
+
+          <section className="section-block">
+            <div className="section-title-row">
+              <h3>Field Notes</h3>
+            </div>
+            <div className="note-panel">
+              <p>Water demand is rising in the north blocks due to sustained heat.</p>
+              <p>Recommend drone inspection for 3 farms with inconsistent sensor readings.</p>
+            </div>
+          </section>
+        </div>
+      </>
+    );
+  }
 
   function renderAuthScreen() {
     return (
@@ -315,8 +454,9 @@ function App() {
               </button>
 
               <div className="demo-account-box">
-                <strong>Demo account:</strong>
+                <strong>Demo accounts:</strong>
                 <span>admin@farm.com / farmer123</span>
+                <span>officer@farm.com / officer123</span>
               </div>
             </form>
           ) : (
@@ -523,8 +663,24 @@ function App() {
           <div className="header-user-box">
             <div className="notification-icon">🔔</div>
             <div className="user-profile">
-              <span className="user-avatar">👨‍🌾</span>
+              <span className="user-avatar">{activePanel === 'secondary' ? '🛰️' : '👨‍🌾'}</span>
               <span>{currentUser ? currentUser.fullName : 'Ramesh Kumar'}</span>
+            </div>
+            <div className="panel-toggle-group">
+              <button
+                type="button"
+                className={activePanel === 'primary' ? 'panel-toggle active' : 'panel-toggle'}
+                onClick={() => setActivePanel('primary')}
+              >
+                Primary
+              </button>
+              <button
+                type="button"
+                className={activePanel === 'secondary' ? 'panel-toggle active' : 'panel-toggle'}
+                onClick={() => setActivePanel('secondary')}
+              >
+                Secondary
+              </button>
             </div>
             <select className="language-select" defaultValue="English">
               <option>English</option>
@@ -806,6 +962,10 @@ function App() {
   }
 
   function renderPageContent() {
+    if (activePanel === 'secondary') {
+      return renderSecondaryDashboard();
+    }
+
     if (page === 'Farm Management') {
       return (
         <div className="management-page">
@@ -900,13 +1060,13 @@ function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar items={sidebarItems} selectedPage={page} onSelect={setPage} />
+      <Sidebar items={activeSidebarItems} selectedPage={page} onSelect={setPage} />
 
       <div className="content-shell">
         <header className="top-header">
           <div>
             <h1>AI Smart Irrigation Advisory System</h1>
-            <p>Smart Farming • Irrigation Decision Support</p>
+            <p>{activePanel === 'secondary' ? 'Secondary User Panel • Agricultural Monitoring' : 'Smart Farming • Irrigation Decision Support'}</p>
           </div>
         </header>
 
