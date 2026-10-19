@@ -1,0 +1,15 @@
+{
+  "name": "smart-irrigation-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Express and MongoDB API for the Smart Sugarcane Irrigation Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "mongodb": "^6.17.0",
+    "sem-v-mini": "file:.."
+  }
+}

@@ -19,6 +19,11 @@ function FarmCard({ farm }) {
         </div>
 
         <div className="info-item">
+          <span className="label">Location:</span>
+          <span className="value">{farm.location}</span>
+        </div>
+
+        <div className="info-item">
           <span className="label">Farm Area:</span>
           <span className="value">{farm.area} acres</span>
         </div>
@@ -41,6 +46,11 @@ function FarmCard({ farm }) {
         <div className="info-item">
           <span className="label">Rainfall Probability:</span>
           <span className="value">{farm.rainfallProb}%</span>
+        </div>
+
+        <div className="info-item">
+          <span className="label">Humidity:</span>
+          <span className="value">{farm.humidity}%</span>
         </div>
       </div>
     </div>

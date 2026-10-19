@@ -3,15 +3,19 @@ import { useState } from 'react';
 function FarmForm({ onAddFarm }) {
   const [formData, setFormData] = useState({
     name: '',
+    location: '',
     crop: '',
     area: '',
     soilType: 'Black Soil',
     soilMoisture: '',
     temperature: '',
-    rainfallProb: '',
+    humidity: '',
+    rainfall: '',
   });
 
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -28,16 +32,21 @@ function FarmForm({ onAddFarm }) {
       validationErrors.name = 'Farm name is required.';
     }
 
+    if (!formData.location.trim()) {
+      validationErrors.location = 'Location is required.';
+    }
+
     if (!formData.crop.trim()) {
       validationErrors.crop = 'Crop type is required.';
     }
 
-    if (!formData.area || Number(formData.area) <= 0) {
+    if (formData.area === '' || !Number.isFinite(Number(formData.area)) || Number(formData.area) <= 0) {
       validationErrors.area = 'Farm area must be greater than 0.';
     }
 
     if (
       formData.soilMoisture === '' ||
+      !Number.isFinite(Number(formData.soilMoisture)) ||
       Number(formData.soilMoisture) < 0 ||
       Number(formData.soilMoisture) > 100
     ) {
@@ -46,24 +55,25 @@ function FarmForm({ onAddFarm }) {
 
     if (
       formData.temperature === '' ||
+      !Number.isFinite(Number(formData.temperature)) ||
       Number(formData.temperature) < -20 ||
       Number(formData.temperature) > 60
     ) {
       validationErrors.temperature = 'Temperature must be between -20°C and 60°C.';
     }
 
-    if (
-      formData.rainfallProb === '' ||
-      Number(formData.rainfallProb) < 0 ||
-      Number(formData.rainfallProb) > 100
-    ) {
-      validationErrors.rainfallProb = 'Rainfall probability must be between 0 and 100.';
+    if (formData.humidity === '' || !Number.isFinite(Number(formData.humidity)) || Number(formData.humidity) < 0 || Number(formData.humidity) > 100) {
+      validationErrors.humidity = 'Humidity must be between 0 and 100.';
+    }
+
+    if (formData.rainfall === '' || !Number.isFinite(Number(formData.rainfall)) || Number(formData.rainfall) < 0) {
+      validationErrors.rainfall = 'Rainfall must be zero or more millimetres.';
     }
 
     return validationErrors;
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const validationErrors = validateForm();
@@ -74,28 +84,28 @@ function FarmForm({ onAddFarm }) {
     }
 
     const newFarm = {
-      id: Date.now(),
       name: formData.name,
+      location: formData.location,
       crop: formData.crop,
       area: Number(formData.area),
       soilType: formData.soilType,
       soilMoisture: Number(formData.soilMoisture),
       temperature: Number(formData.temperature),
-      rainfallProb: Number(formData.rainfallProb),
+      humidity: Number(formData.humidity),
+      rainfall: Number(formData.rainfall),
     };
 
-    onAddFarm(newFarm);
-
-    setFormData({
-      name: '',
-      crop: '',
-      area: '',
-      soilType: 'Black Soil',
-      soilMoisture: '',
-      temperature: '',
-      rainfallProb: '',
-    });
-    setErrors({});
+    setSaving(true);
+    setSubmitError('');
+    try {
+      await onAddFarm(newFarm);
+      setFormData({ name: '', location: '', crop: '', area: '', soilType: 'Black Soil', soilMoisture: '', temperature: '', humidity: '', rainfall: '' });
+      setErrors({});
+    } catch (error) {
+      setSubmitError(error.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -107,6 +117,12 @@ function FarmForm({ onAddFarm }) {
           <label>Farm Name:</label>
           <input type="text" name="name" value={formData.name} onChange={handleChange} />
           {errors.name && <span className="error-text">{errors.name}</span>}
+        </div>
+
+        <div className="form-group">
+          <label>Location:</label>
+          <input type="text" name="location" placeholder="Village, Maharashtra" value={formData.location} onChange={handleChange} />
+          {errors.location && <span className="error-text">{errors.location}</span>}
         </div>
 
         <div className="form-group">
@@ -157,18 +173,20 @@ function FarmForm({ onAddFarm }) {
           </div>
 
           <div className="form-group">
-            <label>Rainfall Probability (%):</label>
-            <input
-              type="number"
-              name="rainfallProb"
-              value={formData.rainfallProb}
-              onChange={handleChange}
-            />
-            {errors.rainfallProb && <span className="error-text">{errors.rainfallProb}</span>}
+            <label>Humidity (%):</label>
+            <input type="number" name="humidity" value={formData.humidity} onChange={handleChange} />
+            {errors.humidity && <span className="error-text">{errors.humidity}</span>}
+          </div>
+
+          <div className="form-group">
+            <label>Rainfall (mm):</label>
+            <input type="number" name="rainfall" value={formData.rainfall} onChange={handleChange} />
+            {errors.rainfall && <span className="error-text">{errors.rainfall}</span>}
           </div>
         </div>
 
-        <button type="submit" className="btn-submit">Add Farm Data</button>
+        {submitError && <div className="auth-error" role="alert">{submitError}</div>}
+        <button type="submit" className="btn-submit" disabled={saving}>{saving ? 'Saving...' : 'Add Farm Data'}</button>
       </form>
     </div>
   );

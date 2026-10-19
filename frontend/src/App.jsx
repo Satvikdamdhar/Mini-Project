@@ -7,7 +7,7 @@ import FarmCard from './components/FarmCard';
 import WeatherCard from './components/WeatherCard';
 import AlertCard from './components/AlertCard';
 import FarmForm from './components/FarmForm';
-import { getFarmData } from './services/agriApi';
+import { createFarm, getFarmData, getWeatherData } from './services/agriApi';
 
 const sidebarItems = [
   { label: 'Dashboard', icon: '🌱' },
@@ -25,13 +25,12 @@ const defaultUsers = [
 
 function App() {
   const [farms, setFarms] = useState([]);
+  const [weatherData, setWeatherData] = useState([]);
   const [selectedFarmId, setSelectedFarmId] = useState(null);
   const [page, setPage] = useState('Dashboard');
-  const [status, setStatus] = useState('');
-  const [message, setMessage] = useState('');
-  const [icon, setIcon] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [pumpOn, setPumpOn] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authMode, setAuthMode] = useState('login');
@@ -55,12 +54,20 @@ function App() {
 
   async function loadFarmData() {
     setLoading(true);
-    const data = await getFarmData();
-    setFarms(data);
-    if (data.length > 0) {
-      setSelectedFarmId(data[0].id);
+    setLoadError('');
+    try {
+      const [data, weather] = await Promise.all([getFarmData(), getWeatherData()]);
+      setFarms(data);
+      setWeatherData(weather);
+      setLastUpdated(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      if (data.length > 0) {
+        setSelectedFarmId((selectedId) => data.some((farm) => farm.id === selectedId) ? selectedId : data[0].id);
+      }
+    } catch (error) {
+      setLoadError(error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -69,47 +76,24 @@ function App() {
 
   const currentFarm = farms.find((farm) => farm.id === selectedFarmId);
 
-  useEffect(() => {
-    if (!currentFarm) {
-      return;
-    }
-
-    if (currentFarm.soilMoisture < 30) {
-      setStatus('💧 Irrigation Required');
-      setIcon('💧');
-      setMessage(
-        `Irrigation is recommended within the next 3 hours because soil moisture is below the recommended level.`
-      );
-    } else if (currentFarm.soilMoisture > 60 || currentFarm.rainfallProb >= 70) {
-      setStatus('🌦 Delay Irrigation');
-      setIcon('🌦');
-      setMessage(
-        `Delay irrigation because soil moisture and rainfall conditions are currently high.`
-      );
-    } else {
-      setStatus('✅ Optimal Moisture');
-      setIcon('✅');
-      setMessage(
-        `Moisture is balanced and current conditions are suitable for crop growth.`
-      );
-    }
-
-    setLastUpdated(
-      new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    );
-  }, [currentFarm]);
+  const recommendation = currentFarm?.recommendation;
+  const status = recommendation?.status || 'Recommendation unavailable';
+  const icon = recommendation?.status === 'Irrigate' ? '💧' : recommendation?.status === 'Monitor' ? '🟡' : '🌦️';
+  const message = recommendation
+    ? `${recommendation.text} ${recommendation.reason}`
+    : 'No recommendation is available for this plot.';
 
   function handleFarmChange(farmId) {
     setSelectedFarmId(farmId);
   }
 
   function handleAddFarm(newFarm) {
-    setFarms((previousFarms) => [...previousFarms, newFarm]);
-    setSelectedFarmId(newFarm.id);
-    setPage('Dashboard');
+    return createFarm(newFarm).then((farm) => {
+      if (!farm) throw new Error('The plot was saved but could not be loaded. Refresh the dashboard.');
+      setFarms((previousFarms) => [...previousFarms, farm]);
+      setSelectedFarmId(farm.id);
+      setPage('Dashboard');
+    });
   }
 
   function handleLoginChange(event) {
@@ -240,23 +224,21 @@ function App() {
         ? 'High'
         : 'Normal';
 
-  const forecast = [
-    { day: 'Mon', temperature: '31°C', humidity: '12%', rain: '10%', wind: '12 km/h', icon: '☀️' },
-    { day: 'Tue', temperature: '30°C', humidity: '15%', rain: '20%', wind: '10 km/h', icon: '🌤️' },
-    { day: 'Wed', temperature: '27°C', humidity: '18%', rain: '30%', wind: '15 km/h', icon: '⛅' },
-    { day: 'Thu', temperature: '28°C', humidity: '16%', rain: '18%', wind: '14 km/h', icon: '🌤️' },
-    { day: 'Fri', temperature: '32°C', humidity: '14%', rain: '8%', wind: '18 km/h', icon: '☀️' },
-    { day: 'Sat', temperature: '33°C', humidity: '18%', rain: '7%', wind: '20 km/h', icon: '☀️' },
-    { day: 'Sun', temperature: '31°C', humidity: '17%', rain: '12%', wind: '16 km/h', icon: '🌤️' },
-  ];
+  const apiWeatherCards = weatherData.map((item) => ({
+    day: item.location,
+    temperature: `${item.temperature}°C`,
+    humidity: `${item.humidity}%`,
+    rain: `${item.rainProbability}% chance`,
+    wind: `${item.windSpeed} km/h`,
+    icon: '🌦️',
+  }));
 
-  const alerts = [
-    currentFarm && currentFarm.soilMoisture < 30
-      ? { type: 'critical', message: 'Soil moisture critically low.' }
-      : { type: 'info', message: 'Soil moisture is within acceptable range.' },
-    { type: 'warning', message: 'Rain expected tomorrow.' },
-    { type: 'success', message: 'Pump completed irrigation successfully.' },
-  ];
+  const apiAlerts = currentFarm?.recommendation
+    ? [{
+        type: currentFarm.recommendation.status === 'Irrigate' ? 'critical' : 'info',
+        message: `${currentFarm.recommendation.status}: ${currentFarm.recommendation.reason}`,
+      }]
+    : [{ type: 'warning', message: 'No recommendation is available for the selected plot.' }];
 
   const secondarySidebarItems = [
     { label: 'Dashboard', icon: '📊' },
@@ -269,6 +251,18 @@ function App() {
   const activeSidebarItems = activePanel === 'secondary' ? secondarySidebarItems : sidebarItems;
 
   function renderSecondaryDashboard() {
+    const lowMoistureCount = farms.filter((farm) => farm.soilMoisture < 30).length;
+    const irrigationCount = farms.filter((farm) => farm.recommendation?.status === 'Irrigate').length;
+    const averageMoisture = farms.length
+      ? Math.round(farms.reduce((total, farm) => total + farm.soilMoisture, 0) / farms.length)
+      : 0;
+    const stressLevels = [
+      { label: 'Low', className: 'low', count: farms.filter((farm) => farm.soilMoisture >= 60).length },
+      { label: 'Moderate', className: 'med', count: farms.filter((farm) => farm.soilMoisture >= 40 && farm.soilMoisture < 60).length },
+      { label: 'High', className: 'high', count: farms.filter((farm) => farm.soilMoisture >= 30 && farm.soilMoisture < 40).length },
+      { label: 'Severe', className: 'severe', count: farms.filter((farm) => farm.soilMoisture < 30).length },
+    ];
+    const maxStressCount = Math.max(1, ...stressLevels.map((level) => level.count));
     return (
       <>
         <div className="secondary-header-strip">
@@ -284,8 +278,8 @@ function App() {
             <div className="summary-icon">🌾</div>
             <div className="summary-content">
               <span className="summary-title">Active Farms</span>
-              <span className="summary-value">284</span>
-              <span className="summary-status normal">+18 this week</span>
+              <span className="summary-value">{farms.length}</span>
+              <span className="summary-status normal">Plots loaded from database</span>
             </div>
           </div>
 
@@ -293,17 +287,17 @@ function App() {
             <div className="summary-icon">💧</div>
             <div className="summary-content">
               <span className="summary-title">Irrigation Demand</span>
-              <span className="summary-value">67%</span>
-              <span className="summary-status high">High alert</span>
+              <span className="summary-value">{farms.length ? Math.round((irrigationCount / farms.length) * 100) : 0}%</span>
+              <span className="summary-status high">Plots recommended for irrigation</span>
             </div>
           </div>
 
           <div className="summary-card-box secondary-summary">
             <div className="summary-icon">📉</div>
             <div className="summary-content">
-              <span className="summary-title">Field Health Index</span>
-              <span className="summary-value">82</span>
-              <span className="summary-status normal">Stable</span>
+              <span className="summary-title">Average Soil Moisture</span>
+              <span className="summary-value">{averageMoisture}%</span>
+              <span className="summary-status normal">Across loaded plots</span>
             </div>
           </div>
 
@@ -311,8 +305,8 @@ function App() {
             <div className="summary-icon">🚨</div>
             <div className="summary-content">
               <span className="summary-title">Urgent Advisories</span>
-              <span className="summary-value">12</span>
-              <span className="summary-status low">Needs action</span>
+              <span className="summary-value">{lowMoistureCount}</span>
+              <span className="summary-status low">Plots below 30% moisture</span>
             </div>
           </div>
         </div>
@@ -323,10 +317,11 @@ function App() {
               <h3>Regional Water Stress</h3>
             </div>
             <div className="secondary-chart">
-              <div className="chart-bar low"><span>Low</span></div>
-              <div className="chart-bar med"><span>Moderate</span></div>
-              <div className="chart-bar high"><span>High</span></div>
-              <div className="chart-bar severe"><span>Severe</span></div>
+              {stressLevels.map((level) => (
+                <div className={`chart-bar ${level.className}`} key={level.label} style={{ height: `${Math.max(10, (level.count / maxStressCount) * 100)}%` }}>
+                  <span>{level.label}: {level.count}</span>
+                </div>
+              ))}
             </div>
             <div className="chart-legend">
               <span><i className="legend-dot green" /> Low stress</span>
@@ -341,18 +336,12 @@ function App() {
               <h3>Advisory Queue</h3>
             </div>
             <div className="mini-list">
-              <div className="list-item">
-                <strong>Green Valley Plot 5</strong>
-                <span>Low soil moisture, send repeat alert</span>
-              </div>
-              <div className="list-item">
-                <strong>River Bend Farm</strong>
-                <span>Rainfall likely; delay irrigation cycle</span>
-              </div>
-              <div className="list-item">
-                <strong>East Ridge Orchards</strong>
-                <span>Sensor battery low; inspect equipment</span>
-              </div>
+              {farms.map((farm) => (
+                <div className="list-item" key={farm.id}>
+                  <strong>{farm.name}</strong>
+                  <span>{farm.recommendation?.status || 'Recommendation unavailable'}: {farm.recommendation?.reason || 'No reason provided.'}</span>
+                </div>
+              ))}
             </div>
           </section>
         </div>
@@ -363,18 +352,12 @@ function App() {
               <h3>Officer Assignments</h3>
             </div>
             <div className="assignment-list">
-              <div className="assignment-box">
-                <span className="assignment-label">North Zone</span>
-                <strong>7 farms monitored</strong>
-              </div>
-              <div className="assignment-box">
-                <span className="assignment-label">South Zone</span>
-                <strong>9 farms monitored</strong>
-              </div>
-              <div className="assignment-box">
-                <span className="assignment-label">West Zone</span>
-                <strong>5 farms monitored</strong>
-              </div>
+              {farms.slice(0, 3).map((farm) => (
+                <div className="assignment-box" key={farm.id}>
+                  <span className="assignment-label">{farm.location}</span>
+                  <strong>{farm.area} acres monitored</strong>
+                </div>
+              ))}
             </div>
           </section>
 
@@ -383,8 +366,8 @@ function App() {
               <h3>Field Notes</h3>
             </div>
             <div className="note-panel">
-              <p>Water demand is rising in the north blocks due to sustained heat.</p>
-              <p>Recommend drone inspection for 3 farms with inconsistent sensor readings.</p>
+              <p>Weather information is sample data stored in the local MongoDB database.</p>
+              <p>{irrigationCount} of {farms.length} plots currently have a rule-based irrigation recommendation.</p>
             </div>
           </section>
         </div>
@@ -642,6 +625,10 @@ function App() {
       return <div className="loading-message">Loading farm data...</div>;
     }
 
+    if (loadError) {
+      return <div className="auth-error" role="alert">Unable to load dashboard data: {loadError} <button type="button" onClick={loadFarmData}>Retry</button></div>;
+    }
+
     return (
       <>
         <div className="dashboard-header-row">
@@ -650,7 +637,7 @@ function App() {
             <select
               id="farm-select"
               value={selectedFarmId ?? ''}
-              onChange={(event) => handleFarmChange(Number(event.target.value))}
+              onChange={(event) => handleFarmChange(event.target.value)}
             >
               {farms.map((farm) => (
                 <option key={farm.id} value={farm.id}>
@@ -702,9 +689,9 @@ function App() {
           />
           <SummaryCard
             icon="💧"
-            title="Water Tank"
-            value="78%"
-            status="Normal"
+            title="Plot Area"
+            value={`${currentFarm ? currentFarm.area : 0} acres`}
+            status={currentFarm ? currentFarm.location : 'No plot selected'}
             statusType="normal"
           />
           <SummaryCard
@@ -713,8 +700,8 @@ function App() {
             value={`${currentFarm ? currentFarm.temperature : 0}°C`}
             extra={
               <div>
-                <span>Humidity 70%</span>
-                <span>Rainfall {currentFarm ? currentFarm.rainfallProb : 0}%</span>
+                <span>Humidity {currentFarm ? currentFarm.humidity : 0}%</span>
+                <span>Rain probability {currentFarm ? currentFarm.rainfallProb : 0}%</span>
               </div>
             }
           />
@@ -730,13 +717,13 @@ function App() {
         </div>
 
         <RecommendationCard
-          title="🤖 AI Irrigation Recommendation"
           status={status}
           message={message}
           icon={icon}
           actionText="Start Irrigation"
           secondaryText="View Details"
         />
+        <p className="weather-source-note">Rule-based prototype using API thresholds. It is not a trained AI model.</p>
 
         <section className="section-block">
           <div className="section-title-row">
@@ -771,11 +758,11 @@ function App() {
               </div>
               <div className="mini-stat">
                 <span>💧 Humidity</span>
-                <strong>70%</strong>
+                <strong>{currentFarm ? `${currentFarm.humidity}%` : 'N/A'}</strong>
               </div>
               <div className="mini-stat">
                 <span>🌧 Rainfall</span>
-                <strong>{currentFarm ? `${currentFarm.rainfallProb}%` : '0%'}</strong>
+                <strong>{currentFarm ? `${currentFarm.rainfall} mm` : 'N/A'}</strong>
               </div>
               <div className="mini-stat soil-type">
                 <span>🌾 Soil Type</span>
@@ -798,15 +785,19 @@ function App() {
               </div>
               <div className="weather-detail-row">
                 <span>Humidity</span>
-                <strong>70%</strong>
+                <strong>{currentFarm ? `${currentFarm.humidity}%` : 'N/A'}</strong>
               </div>
               <div className="weather-detail-row">
                 <span>Rainfall Probability</span>
-                <strong>{currentFarm ? `${currentFarm.rainfallProb}%` : '0%'}</strong>
+                <strong>{currentFarm ? `${currentFarm.rainfallProb}% chance` : 'N/A'}</strong>
               </div>
               <div className="weather-detail-row">
                 <span>Wind Speed</span>
-                <strong>12 km/h</strong>
+                <strong>{currentFarm?.windSpeed != null ? `${currentFarm.windSpeed} km/h` : 'N/A'}</strong>
+              </div>
+              <div className="weather-detail-row">
+                <span>Data Source</span>
+                <strong>{currentFarm?.weatherSource || 'Unavailable'}</strong>
               </div>
             </div>
           </section>
@@ -814,10 +805,10 @@ function App() {
 
         <section className="section-block">
           <div className="section-title-row">
-            <h3>7-Day Weather Forecast</h3>
+            <h3>Weather by Plot (Demo Data, Not Live)</h3>
           </div>
           <div className="forecast-grid">
-            {forecast.map((day) => (
+            {apiWeatherCards.map((day) => (
               <WeatherCard
                 key={day.day}
                 day={day.day}
@@ -852,7 +843,7 @@ function App() {
                 </div>
                 <div className="advisory-row">
                   <span>Rainfall Probability</span>
-                  <strong>{currentFarm.rainfallProb}%</strong>
+                  <strong>{currentFarm.rainfallProb}% chance ({currentFarm.rainfall} mm recorded)</strong>
                 </div>
                 <div className="advisory-row">
                   <span>Temperature</span>
@@ -864,16 +855,12 @@ function App() {
                 </div>
                 <div className="advisory-row">
                   <span>Reason</span>
-                  <strong>{message}</strong>
+                  <strong>{currentFarm.recommendation?.reason || message}</strong>
                 </div>
                 <div className="advisory-row">
                   <span>Recommendation</span>
                   <strong>
-                    {status.includes('Irrigation')
-                      ? 'Start irrigation and monitor soil moisture.'
-                      : status.includes('Delay')
-                        ? 'Delay watering because moisture conditions are high.'
-                        : 'Maintain current moisture level and continue regular monitoring.'}
+                    {currentFarm.recommendation?.text || 'No recommendation is available.'}
                   </strong>
                 </div>
               </div>
@@ -907,11 +894,7 @@ function App() {
                 <div className="advisory-row">
                   <span>Advisory</span>
                   <strong>
-                    {status.includes('Irrigation')
-                      ? 'Provide irrigation and monitor the soil moisture regularly.'
-                      : status.includes('Delay')
-                        ? 'Delay irrigation because soil moisture and rainfall probability are high.'
-                        : 'Maintain current moisture level and continue monitoring.'}
+                    {currentFarm.recommendation?.text || 'No recommendation is available.'}
                   </strong>
                 </div>
                 <div className="advisory-row">
@@ -928,7 +911,7 @@ function App() {
             <h3>Recent Alerts</h3>
           </div>
           <div className="alert-list">
-            {alerts.map((alert, index) => (
+            {apiAlerts.map((alert, index) => (
               <AlertCard key={index} type={alert.type} message={alert.message} />
             ))}
           </div>
@@ -962,6 +945,11 @@ function App() {
   }
 
   function renderPageContent() {
+    if (loading) return <div className="loading-message">Loading farm data...</div>;
+    if (loadError) {
+      return <div className="auth-error" role="alert">Unable to load dashboard data: {loadError} <button type="button" onClick={loadFarmData}>Retry</button></div>;
+    }
+
     if (activePanel === 'secondary') {
       return renderSecondaryDashboard();
     }

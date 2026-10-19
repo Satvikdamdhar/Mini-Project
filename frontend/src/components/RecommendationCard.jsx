@@ -1,10 +1,10 @@
-function RecommendationCard({ title, status, message, icon, actionText, secondaryText }) {
+function RecommendationCard({ status, message, icon, actionText, secondaryText }) {
   return (
     <div className="recommendation-panel">
       <div className="recommendation-header">
         <div className="recommendation-icon">{icon}</div>
         <div>
-          <h3>{title}</h3>
+        <h3>Rule-Based Irrigation Recommendation</h3>
           <p>{message}</p>
         </div>
       </div>
