@@ -1,12 +1,22 @@
 const API_BASE_URL = 'http://localhost:5000/api';
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || 'The API request failed.');
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...options.headers },
+    });
+  } catch {
+    throw new Error('Could not reach the API. Check that the backend is running.');
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const result = contentType.includes('application/json')
+    ? await response.json().catch(() => null)
+    : null;
+  if (!response.ok) throw new Error(result?.error || 'The API request failed.');
+  if (result === null) throw new Error('The API returned an invalid response.');
   return result;
 }
 

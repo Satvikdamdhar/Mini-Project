@@ -23,11 +23,11 @@ app.use('/api/recommendations', recommendationsRouter);
 
 app.use((req, res) => res.status(404).json({ error: 'Endpoint not found.' }));
 app.use((error, req, res, _next) => {
-  console.error(error);
   if (error.type === 'entity.parse.failed') {
     return res.status(400).json({ error: 'Request body must contain valid JSON.' });
   }
-  res.status(500).json({ error: 'Server error. Check that MongoDB is running and try again.' });
+  console.error(error);
+  res.status(500).json({ error: 'Internal server error. Check the backend logs.' });
 });
 
 connectToDatabase()

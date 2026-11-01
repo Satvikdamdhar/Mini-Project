@@ -1,0 +1,7 @@
+{
+  "name": "smart-irrigation-core-node",
+  "version": "1.0.0",
+  "private": true,
+  "description": "File-backed REST API using Node.js built-in modules only",
+  "scripts": { "start": "node server.js" }
+}

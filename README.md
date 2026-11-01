@@ -1,125 +1,196 @@
 # Smart Sugarcane Irrigation Dashboard
 
-The project is organized into two main folders:
+A React dashboard for monitoring sugarcane plots, demo weather conditions, and rule-based irrigation advice. The repository has two separate APIs: an Express API backed by MongoDB and a built-in Node.js API backed by a JSON file.
 
-- `backend/` — Express REST API and MongoDB access.
-- `frontend/` — the existing React + Vite dashboard.
+## Architecture and data flow
 
-## Smart Sugarcane Irrigation Dashboard
+- `frontend/` contains the React + Vite dashboard.
+- `backend/` contains the Express API on port 5000 and the MongoDB native driver connection to `SugarcaneDB`.
+- `backend/core-node/` contains a separate Node.js `http` API on port 4000. It has no Express or MongoDB dependency and stores records in `backend/core-node/data/plots.json`.
+- The dashboard calls Express for plots, weather, and recommendations. New farms are posted to MongoDB and are reloaded from the API.
+- Express initializes sample plot and weather records only when the corresponding collection is empty. Existing records are not replaced.
 
-This project contains the existing React dashboard and a small Express + MongoDB backend. The API returns plot measurements, demo weather records, and rule-based irrigation recommendations. The sample weather is stored in the local database and is not live weather data. The recommendation is a rule-based prototype, not a trained AI model.
+Weather records are demo data; there is no live weather service integrated. Irrigation recommendations are rule-based; there is no trained ML model. Frontend login and registration state are demo-only and are not stored in MongoDB or suitable for production authentication.
 
-### Requirements
+## Folder structure
 
-- Node.js (LTS) and npm
-- MongoDB Community Server running on this computer
+```text
+backend/
+  db.js
+  server.js
+  routes/
+    plots.js
+    weather.js
+    recommendations.js
+  core-node/
+    server.js
+    package.json
+    data/plots.json
+  postman/
+    Smart-Irrigation-API.postman_collection.json
+frontend/
+  src/
+    App.jsx
+    services/agriApi.js
+```
 
-### Start MongoDB on Windows
+## Requirements
 
-Install MongoDB Community Server and configure it to run as a Windows service. In an Administrator PowerShell window, start the service:
+- Node.js 18 or newer and npm
+- MongoDB Community Server for the Express API
+- `mongosh` for direct database inspection (optional)
+- Postman for importing and running the collection (optional)
+
+No additional packages are required by the Core Node.js API.
+
+## Start MongoDB
+
+Install MongoDB Community Server and start its service. On Windows, from an Administrator terminal:
 
 ```powershell
 net start MongoDB
 ```
 
-You can also open **Services** in Windows and start the **MongoDB Server** service there. The backend connects to `mongodb://127.0.0.1:27017` and creates the `SugarcaneDB` database plus demo records in `plots` and `weather` the first time it starts.
+The default connection is `mongodb://127.0.0.1:27017`. To use another URI, set `MONGODB_URI` in the backend terminal before starting Express.
 
-### Start the backend
+## Run the Core Node.js API (port 4000)
 
-In a VS Code terminal, from the project folder that contains `backend`:
+From the repository root:
 
 ```powershell
-cd "C:\Users\Exam1\Downloads\Mini-Project-main\Mini-Project-main\backend"
+cd backend/core-node
+npm start
+```
+
+It creates `data/plots.json` containing an empty array only when that file does not exist. It does not reset existing file contents. Set `CORE_PORT` to change its port.
+
+## Run the Express + MongoDB API (port 5000)
+
+In a separate terminal, from the repository root:
+
+```powershell
+cd backend
 npm install
 npm start
 ```
 
-The API listens at `http://localhost:5000`. Keep this terminal open. If MongoDB is installed at a different address, set `MONGODB_URI` before `npm start`.
+The server waits for MongoDB before listening at `http://localhost:5000`. Connection failures are reported in the terminal and prevent startup.
 
-### Start the React frontend
+## Run the React frontend
 
-Open a second VS Code terminal. Run these commands from the `frontend` folder:
+In another terminal:
 
 ```powershell
-cd "C:\Users\Exam1\Downloads\Mini-Project-main\Mini-Project-main\frontend"
+cd frontend
 npm install
 npm run dev
 ```
 
-Open the Vite URL printed in the terminal, normally `http://localhost:5173`. The dashboard’s API base is `http://localhost:5000/api`. Sign in with the existing demo account shown on the login screen.
+Open the Vite URL shown in the terminal, normally `http://localhost:5173`. The dashboard uses `http://localhost:5000/api`.
 
-### Check the API in a browser
+## API endpoints
 
-With MongoDB and the backend running, open these URLs:
+### Express API: `http://localhost:5000/api`
 
-- `http://localhost:5000/api/plots` — all plots
-- `http://localhost:5000/api/plots/<plot-id>` — one plot (copy an `_id` from the list)
-- `http://localhost:5000/api/weather` — sample weather data, labelled as demo data
-- `http://localhost:5000/api/recommendations` — rule-based recommendation for each plot
+| Method | Endpoint | Success | Purpose |
+| --- | --- | --- | --- |
+| GET | `/health` | 200 | Health status |
+| GET | `/plots` | 200 | List plots |
+| GET | `/plots/:id` | 200 | Read one plot |
+| POST | `/plots` | 201 | Create a plot |
+| PUT | `/plots/:id` | 200 | Replace plot fields while retaining unspecified optional fields |
+| DELETE | `/plots/:id` | 200 | Delete a plot |
+| GET | `/weather` | 200 | Read demo weather records |
+| GET | `/recommendations` | 200 | Calculate rule-based advice |
 
-The response for `/api/recommendations` looks like:
+Plot create and update require non-empty `plotName`, `location`, and `crop`; numeric `area`, `soilMoisture`, `temperature`, `humidity`, and `rainfall`; area must be positive, moisture and humidity 0–100, rainfall non-negative, temperature -20–60. `soilType` and `irrigationStatus` are optional.
+
+Example plot body:
 
 ```json
-[
-  {
-    "plotId": "<MongoDB ObjectId>",
-    "plotName": "Green Valley Plot",
-    "status": "Irrigate",
-    "text": "Irrigation is recommended soon.",
-    "reason": "Soil moisture is low at 24% and rain probability is 10%.",
-    "ruleBasedPrototype": true
-  }
-]
+{
+  "plotName": "North Field",
+  "location": "Kolhapur, Maharashtra",
+  "crop": "Sugarcane",
+  "area": 2,
+  "soilMoisture": 40,
+  "temperature": 30,
+  "humidity": 65,
+  "rainfall": 1,
+  "soilType": "Black Soil"
+}
 ```
 
-### Confirm MongoDB data is used
+### Core Node.js API: `http://localhost:4000`
 
-The browser GET responses are read from MongoDB. To inspect stored documents directly, open a terminal and run `mongosh`, then:
+| Method | Endpoint | Success | Purpose |
+| --- | --- | --- | --- |
+| GET | `/` or `/health` | 200 | Health status |
+| GET | `/plots` | 200 | List file-backed plots |
+| GET | `/plots?crop=Sugarcane` | 200 | Filter by crop (query parameter) |
+| GET | `/plots/:id` | 200 | Read one plot |
+| POST | `/plots` | 201 | Create a plot |
+| PUT | `/plots/:id` | 200 | Update a plot |
+| DELETE | `/plots/:id` | 200 | Delete a plot |
+
+The core API uses the same plot body fields and validation limits. It assigns each record a UUID `id`; Express uses MongoDB `_id` ObjectIds. The two servers and their data stores are independent.
+
+## HTTP status codes
+
+- `200`: successful read, update, delete, or health request
+- `201`: record created
+- `400`: invalid JSON, invalid input, or invalid MongoDB ObjectId
+- `404`: unknown endpoint or record does not exist
+- `405`: unsupported method on a recognized Core API resource
+- `413`: Core API request body exceeds 1 MB
+- `500`: unexpected server or file/database operation error
+
+Errors are JSON objects with an `error` message. Express requires MongoDB to be reachable and logs connection failures. Core API filesystem failures are returned as 500 responses and logged.
+
+## Import and run Postman collection
+
+1. Start MongoDB, the Express API, and the Core API.
+2. In Postman choose **Import**, then select `backend/postman/Smart-Irrigation-API.postman_collection.json`.
+3. Open **Smart Irrigation API**, then run it with Collection Runner.
+4. Run requests in listed order. The Express create request stores `_id` in `plotId`; the Core create request stores `id` in `corePlotId`. Later read, update, and delete requests reuse those variables.
+5. Create requests add demo test records to their respective stores; the final delete requests remove those records.
+
+The collection includes checks for status, JSON shape, required fields, CRUD behavior, invalid input, invalid MongoDB IDs, missing records, and unknown routes. The collection definition is provided; results depend on running it against the local services.
+
+## Verify MongoDB persistence
+
+With MongoDB running, open `mongosh`:
 
 ```javascript
 use SugarcaneDB
-db.plots.find()
-db.weather.find()
+db.plots.find().pretty()
+db.weather.find().pretty()
+db.plots.countDocuments()
 ```
 
-Add a plot from the existing **Farm Management** form. It is sent to `POST /api/plots` and stored in MongoDB; refresh the dashboard or query `db.plots.find()` to confirm it remains there. If the backend cannot connect to MongoDB, it returns an error and the dashboard displays it instead of reporting a successful save.
+Create a plot through the dashboard or `POST /api/plots`, refresh the dashboard, then inspect `db.plots.find()` to confirm the record persisted. MongoDB stores plot IDs as ObjectIds.
 
-### API routes
+## Build and lint
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/api/plots` | List plots |
-| GET | `/api/plots/:id` | Read one plot |
-| POST | `/api/plots` | Add a plot |
-| PUT | `/api/plots/:id` | Update a plot |
-| DELETE | `/api/plots/:id` | Delete a plot |
-| GET | `/api/weather` | Read sample weather |
-| GET | `/api/recommendations` | Read rule-based recommendations |
-
-Plot area is in acres, soil moisture and humidity are percentages, temperature is in °C, rainfall is in mm, rain probability is a percentage, and wind speed is in km/h.
-
-### Build and lint the frontend
-
-From the `frontend` folder:
+From `frontend/`:
 
 ```powershell
 npm run build
 npm run lint
 ```
 
-The backend starts only when MongoDB is available; the GET routes can then be checked directly in a browser without Postman.
+## Troubleshooting
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+- **Express exits before listening:** start MongoDB, check `MONGODB_URI`, and inspect the backend terminal error.
+- **Dashboard cannot connect:** keep Express running on port 5000 and Vite on port 5173; check the browser network panel and API terminal.
+- **Port already in use:** stop the process using the port or set `PORT` (Express) / `CORE_PORT` (Core API) to an available port. The frontend API URL is currently configured in `frontend/src/services/agriApi.js`.
+- **Invalid plot response:** send valid JSON, include all required fields, use numbers for measurements, and observe the documented ranges.
+- **Core API data file error:** check write permissions for `backend/core-node/data/plots.json` and ensure it contains a JSON array.
 
-Currently, two official plugins are available:
+## Known limitations
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+- Weather values are seeded demonstration records, not live observations.
+- Recommendations use simple thresholds, not a trained model or agronomic decision system.
+- Frontend authentication is demo-only, client-side state and not MongoDB-backed.
+- The Core API JSON file is intended for demonstration; simultaneous writes from multiple processes are not coordinated.
+- The frontend currently targets the default Express URL directly; changing the backend port requires updating the API base URL.

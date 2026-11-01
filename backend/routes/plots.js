@@ -16,6 +16,17 @@ function validPlot(body) {
     body.temperature >= -20 && body.temperature <= 60;
 }
 
+function plotFromBody(body, existing = {}) {
+  return {
+    plotName: body.plotName.trim(), location: body.location.trim(), crop: body.crop.trim(),
+    area: body.area, soilMoisture: body.soilMoisture,
+    temperature: body.temperature, humidity: body.humidity, rainfall: body.rainfall,
+    soilType: typeof body.soilType === 'string' && body.soilType.trim() ? body.soilType.trim() : (existing.soilType || 'Black Soil'),
+    irrigationStatus: typeof body.irrigationStatus === 'string' && body.irrigationStatus.trim()
+      ? body.irrigationStatus.trim() : (existing.irrigationStatus || 'Pending recommendation'),
+  };
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const db = await connectToDatabase();
@@ -42,12 +53,7 @@ router.post('/', async (req, res, next) => {
   if (!validPlot(req.body)) return res.status(400).json({ error: 'Provide plotName, location, crop and numeric farm measurements.' });
   try {
     const db = await connectToDatabase();
-    const plot = {
-      plotName: req.body.plotName.trim(), location: req.body.location.trim(), crop: req.body.crop.trim(),
-      area: Number(req.body.area), soilMoisture: Number(req.body.soilMoisture),
-      temperature: Number(req.body.temperature), humidity: Number(req.body.humidity), rainfall: Number(req.body.rainfall),
-      soilType: req.body.soilType || 'Black Soil', irrigationStatus: 'Pending recommendation',
-    };
+    const plot = plotFromBody(req.body);
     const result = await db.collection('plots').insertOne(plot);
     res.status(201).json({ ...plot, _id: result.insertedId });
   } catch (error) {
@@ -60,13 +66,11 @@ router.put('/:id', async (req, res, next) => {
   if (!validPlot(req.body)) return res.status(400).json({ error: 'Provide plotName, location, crop and numeric farm measurements.' });
   try {
     const db = await connectToDatabase();
-    const plot = {
-      plotName: req.body.plotName.trim(), location: req.body.location.trim(), crop: req.body.crop.trim(),
-      area: Number(req.body.area), soilMoisture: Number(req.body.soilMoisture),
-      temperature: Number(req.body.temperature), humidity: Number(req.body.humidity), rainfall: Number(req.body.rainfall),
-      soilType: req.body.soilType || 'Black Soil', irrigationStatus: req.body.irrigationStatus || 'Pending recommendation',
-    };
-    const result = await db.collection('plots').updateOne({ _id: new ObjectId(req.params.id) }, { $set: plot });
+    const collection = db.collection('plots');
+    const current = await collection.findOne({ _id: new ObjectId(req.params.id) });
+    if (!current) return res.status(404).json({ error: 'Plot not found.' });
+    const plot = plotFromBody(req.body, current);
+    const result = await collection.updateOne({ _id: current._id }, { $set: plot });
     if (!result.matchedCount) return res.status(404).json({ error: 'Plot not found.' });
     res.json({ _id: new ObjectId(req.params.id), ...plot });
   } catch (error) {
